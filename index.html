@@ -1,0 +1,776 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Neon Brick Breaker Ultimate</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&display=swap');
+
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #050505;
+            color: white;
+            font-family: 'Orbitron', sans-serif;
+            touch-action: none;
+            user-select: none;
+        }
+
+        #game-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: radial-gradient(circle at center, #111 0%, #000 100%);
+        }
+
+        canvas {
+            box-shadow: 0 0 40px rgba(0, 200, 255, 0.15);
+            background-color: rgba(10, 10, 15, 0.95);
+            border: 2px solid #222;
+            border-radius: 4px;
+        }
+
+        .ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: 20px;
+        }
+
+        .overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.85);
+            backdrop-filter: blur(8px);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            pointer-events: auto;
+            transition: opacity 0.3s ease;
+            z-index: 20;
+        }
+
+        .hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .btn {
+            background: rgba(0, 255, 255, 0.1);
+            color: #0ff;
+            border: 2px solid #0ff;
+            padding: 15px 50px;
+            font-size: 1.5rem;
+            font-family: 'Orbitron', sans-serif;
+            font-weight: 700;
+            cursor: pointer;
+            text-transform: uppercase;
+            letter-spacing: 3px;
+            box-shadow: 0 0 15px rgba(0, 255, 255, 0.2);
+            transition: all 0.2s;
+            border-radius: 4px;
+            margin-top: 30px;
+        }
+
+        .btn:hover {
+            background: #0ff;
+            color: #000;
+            box-shadow: 0 0 40px rgba(0, 255, 255, 0.8);
+            transform: scale(1.05);
+        }
+
+        .hud-text {
+            text-shadow: 0 0 10px currentColor;
+        }
+
+        /* Powerup floating labels */
+        .float-text {
+            position: absolute;
+            font-weight: bold;
+            animation: floatUp 1s ease-out forwards;
+            pointer-events: none;
+        }
+
+        @keyframes floatUp {
+            0% { transform: translateY(0) scale(1); opacity: 1; }
+            100% { transform: translateY(-50px) scale(1.2); opacity: 0; }
+        }
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    <canvas id="gameCanvas"></canvas>
+    
+    <!-- HUD -->
+    <div class="ui-layer">
+        <div class="flex justify-between w-full max-w-4xl mx-auto text-xl md:text-2xl font-bold tracking-wider">
+            <div class="hud-text text-cyan-400">SCORE: <span id="scoreEl">0</span></div>
+            <div class="text-center text-sm md:text-base text-gray-500 mt-1" id="levelEl">LEVEL 1</div>
+            <div class="hud-text text-pink-500">LIVES: <span id="livesEl">3</span></div>
+        </div>
+    </div>
+
+    <!-- Start Screen -->
+    <div id="startScreen" class="overlay">
+        <h1 class="text-5xl md:text-7xl font-black text-transparent bg-clip-text bg-gradient-to-br from-cyan-400 via-blue-500 to-purple-600 mb-2" style="filter: drop-shadow(0 0 20px rgba(0,255,255,0.4));">NEON BREAKER</h1>
+        <h2 class="text-xl md:text-2xl text-purple-300 tracking-[0.5em] mb-8">ULTIMATE EDITION</h2>
+        
+        <div class="grid grid-cols-2 gap-4 text-left text-sm text-gray-400 mb-8 border border-gray-700 p-6 rounded bg-black/50">
+            <div class="flex items-center"><span class="w-3 h-3 bg-red-500 rounded-full mr-2 shadow-[0_0_10px_red]"></span> Multi-Ball</div>
+            <div class="flex items-center"><span class="w-3 h-3 bg-blue-500 rounded-full mr-2 shadow-[0_0_10px_blue]"></span> Wide Paddle</div>
+            <div class="flex items-center"><span class="w-3 h-3 bg-green-500 rounded-full mr-2 shadow-[0_0_10px_lime]"></span> Fire Ball</div>
+            <div class="flex items-center"><span class="w-3 h-3 bg-pink-500 rounded-full mr-2 shadow-[0_0_10px_pink]"></span> Extra Life</div>
+        </div>
+
+        <button class="btn" id="startBtn">INITIALIZE</button>
+    </div>
+
+    <!-- Game Over Screen -->
+    <div id="gameOverScreen" class="overlay hidden">
+        <h2 class="text-6xl font-black text-red-500 mb-2" style="text-shadow: 0 0 30px red;">SYSTEM FAILURE</h2>
+        <p class="text-2xl mb-8 text-white">SCORE: <span id="finalScore" class="text-cyan-400">0</span></p>
+        <button class="btn" id="restartBtn">RETRY</button>
+    </div>
+
+    <!-- Victory Screen -->
+    <div id="victoryScreen" class="overlay hidden">
+        <h2 class="text-6xl font-black text-green-400 mb-2" style="text-shadow: 0 0 30px lime;">COMPLETE</h2>
+        <p class="text-xl text-gray-300 mb-8">SECTOR CLEARED</p>
+        <button class="btn" id="nextLevelBtn">NEXT SECTOR</button>
+    </div>
+</div>
+
+<script>
+/**
+ * AUDIO SYSTEM (Web Audio API)
+ */
+const AudioSys = {
+    ctx: null,
+    init() { if (!this.ctx) this.ctx = new (window.AudioContext || window.webkitAudioContext)(); },
+    
+    playTone(freq, type, duration, vol = 0.1, slide = 0) {
+        if (!this.ctx) return;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = type;
+        osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
+        if(slide !== 0) osc.frequency.linearRampToValueAtTime(freq + slide, this.ctx.currentTime + duration);
+        gain.gain.setValueAtTime(vol, this.ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + duration);
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start();
+        osc.stop(this.ctx.currentTime + duration);
+    },
+
+    sfx: {
+        paddle: () => AudioSys.playTone(300, 'square', 0.05, 0.1),
+        wall: () => AudioSys.playTone(200, 'sine', 0.05, 0.1),
+        brick: () => AudioSys.playTone(400 + Math.random()*200, 'triangle', 0.1, 0.08),
+        metal: () => AudioSys.playTone(150, 'sawtooth', 0.05, 0.05),
+        powerup: () => {
+            AudioSys.playTone(600, 'sine', 0.1, 0.05);
+            setTimeout(() => AudioSys.playTone(900, 'sine', 0.2, 0.05), 100);
+        },
+        lose: () => AudioSys.playTone(100, 'sawtooth', 0.5, 0.2, -50),
+        fire: () => AudioSys.playTone(100, 'sawtooth', 0.2, 0.05) // Explosion sound
+    }
+};
+
+/**
+ * CONSTANTS
+ */
+const CFG = {
+    width: 800,
+    height: 600,
+    paddleW: 100,
+    paddleH: 14,
+    ballR: 6,
+    brickRows: 6,
+    brickCols: 10,
+    brickGap: 8,
+    gravity: 0, // It's brick breaker, no gravity
+    maxSpeed: 10,
+    colors: ['#ef4444', '#f97316', '#eab308', '#22c55e', '#3b82f6', '#a855f7']
+};
+
+/**
+ * GAME CLASSES
+ */
+class Particle {
+    constructor(x, y, color, speed = 1) {
+        this.x = x; this.y = y;
+        const angle = Math.random() * Math.PI * 2;
+        const v = Math.random() * speed * 2;
+        this.dx = Math.cos(angle) * v;
+        this.dy = Math.sin(angle) * v;
+        this.life = 1.0;
+        this.decay = 0.02 + Math.random() * 0.02;
+        this.color = color;
+        this.size = Math.random() * 3 + 1;
+    }
+    update() {
+        this.x += this.dx;
+        this.y += this.dy;
+        this.life -= this.decay;
+    }
+    draw(ctx) {
+        if(this.life <= 0) return;
+        ctx.globalAlpha = this.life;
+        ctx.fillStyle = this.color;
+        ctx.fillRect(this.x, this.y, this.size, this.size);
+        ctx.globalAlpha = 1;
+    }
+}
+
+class PowerUp {
+    constructor(x, y, type) {
+        this.x = x; this.y = y;
+        this.w = 30; this.h = 15;
+        this.dy = 3;
+        this.type = type; // 'MULTI', 'WIDE', 'FIRE', 'LIFE'
+        this.active = true;
+        
+        // Visual properties
+        this.color = {
+            'MULTI': '#ef4444', // Red
+            'WIDE': '#3b82f6',  // Blue
+            'FIRE': '#22c55e',  // Green
+            'LIFE': '#d946ef'   // Pink
+        }[type];
+        
+        this.label = {
+            'MULTI': 'M', 'WIDE': 'W', 'FIRE': 'F', 'LIFE': '♥'
+        }[type];
+    }
+
+    update() {
+        this.y += this.dy;
+        if(this.y > CFG.height) this.active = false;
+    }
+
+    draw(ctx) {
+        if(!this.active) return;
+        
+        ctx.shadowBlur = 10;
+        ctx.shadowColor = this.color;
+        ctx.fillStyle = this.color;
+        
+        // Capsule shape
+        ctx.beginPath();
+        ctx.roundRect(this.x, this.y, this.w, this.h, 8);
+        ctx.fill();
+        
+        ctx.shadowBlur = 0;
+        ctx.fillStyle = '#fff';
+        ctx.font = 'bold 12px Arial';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(this.label, this.x + this.w/2, this.y + this.h/2 + 1);
+    }
+}
+
+class Ball {
+    constructor(x, y, speed) {
+        this.x = x; this.y = y;
+        this.r = CFG.ballR;
+        this.speed = speed;
+        // Random upward angle
+        let angle = -Math.PI/2 + (Math.random() * 0.5 - 0.25);
+        this.dx = Math.cos(angle) * speed;
+        this.dy = Math.sin(angle) * speed;
+        this.active = true;
+        this.isFire = false;
+        this.trail = [];
+    }
+
+    update() {
+        if(!this.active) return;
+        
+        // Trail
+        this.trail.push({x: this.x, y: this.y, alpha: 0.5});
+        if(this.trail.length > 8) this.trail.shift();
+
+        this.x += this.dx;
+        this.y += this.dy;
+
+        // Wall Collisions
+        if(this.x + this.r > CFG.width) { this.x = CFG.width - this.r; this.dx *= -1; AudioSys.sfx.wall(); }
+        if(this.x - this.r < 0) { this.x = this.r; this.dx *= -1; AudioSys.sfx.wall(); }
+        if(this.y - this.r < 0) { this.y = this.r; this.dy *= -1; AudioSys.sfx.wall(); }
+        
+        // Floor
+        if(this.y - this.r > CFG.height) {
+            this.active = false;
+        }
+    }
+
+    draw(ctx) {
+        if(!this.active) return;
+
+        // Draw trail
+        this.trail.forEach((p, i) => {
+            ctx.fillStyle = this.isFire ? `rgba(255, 100, 0, ${i/10})` : `rgba(0, 255, 255, ${i/10})`;
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, this.r * (i/8), 0, Math.PI*2);
+            ctx.fill();
+        });
+
+        // Draw ball
+        ctx.shadowBlur = this.isFire ? 20 : 10;
+        ctx.shadowColor = this.isFire ? '#ff4400' : '#0ff';
+        ctx.fillStyle = this.isFire ? '#ffaa00' : '#fff';
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.r, 0, Math.PI*2);
+        ctx.fill();
+        ctx.shadowBlur = 0;
+    }
+}
+
+class Game {
+    constructor() {
+        this.canvas = document.getElementById('gameCanvas');
+        this.ctx = this.canvas.getContext('2d');
+        this.setupResizing();
+        
+        this.state = 'MENU'; 
+        this.level = 1;
+        this.score = 0;
+        this.lives = 3;
+        
+        this.paddle = { x: 0, y: 0, w: CFG.paddleW, h: CFG.paddleH, targetW: CFG.paddleW };
+        this.inputX = CFG.width / 2;
+        
+        this.balls = [];
+        this.bricks = [];
+        this.particles = [];
+        this.powerups = [];
+        
+        this.initInput();
+        
+        // Bind UI
+        document.getElementById('startBtn').onclick = () => { AudioSys.init(); this.startGame(); };
+        document.getElementById('restartBtn').onclick = () => this.startGame();
+        document.getElementById('nextLevelBtn').onclick = () => this.nextLevel();
+
+        requestAnimationFrame(t => this.loop(t));
+    }
+
+    setupResizing() {
+        const resize = () => {
+            let aspect = CFG.width / CFG.height;
+            let w = window.innerWidth - 20;
+            let h = window.innerHeight - 20;
+            if(w/h > aspect) w = h * aspect;
+            else h = w / aspect;
+            
+            this.canvas.width = CFG.width;
+            this.canvas.height = CFG.height;
+            this.canvas.style.width = w + 'px';
+            this.canvas.style.height = h + 'px';
+            this.scale = w / CFG.width;
+            this.bounds = this.canvas.getBoundingClientRect();
+        };
+        window.onresize = resize;
+        resize();
+    }
+
+    initInput() {
+        const move = (x) => {
+            let gameX = (x - this.bounds.left) / this.scale;
+            this.inputX = Math.max(0, Math.min(CFG.width, gameX));
+        };
+        window.onmousemove = e => move(e.clientX);
+        window.ontouchmove = e => { e.preventDefault(); move(e.touches[0].clientX); };
+        
+        const click = () => {
+            if(this.state === 'PLAYING' && this.balls.every(b => !b.active)) {
+                // Should not happen with multi-ball logic, but used for initial launch if sticky
+                this.launchBall();
+            }
+        };
+        window.onmousedown = click;
+        window.ontouchend = click;
+    }
+
+    initLevel() {
+        this.bricks = [];
+        this.powerups = [];
+        this.particles = [];
+        this.balls = []; // Clear old balls
+        
+        // Reset paddle
+        this.paddle.targetW = CFG.paddleW; 
+        
+        // Spawn initial ball
+        this.resetBall();
+
+        // Generate Bricks
+        const rows = CFG.brickRows;
+        const cols = CFG.brickCols;
+        const w = (CFG.width - (cols+1)*CFG.brickGap) / cols;
+        const h = 25;
+        
+        for(let r=0; r<rows; r++) {
+            for(let c=0; c<cols; c++) {
+                let type = 'NORMAL';
+                let hp = 1;
+                let color = CFG.colors[r];
+                
+                // Logic for varied bricks
+                if (this.level > 1 && Math.random() < 0.1) {
+                    type = 'HARD';
+                    hp = 2;
+                }
+                if (this.level > 2 && Math.random() < 0.05 && r < 2) {
+                    type = 'STEEL';
+                    hp = 999;
+                    color = '#71717a'; // Zinc-500
+                }
+                
+                // Skip some for patterns
+                if(this.level % 2 === 0 && (r+c)%2 === 0) continue;
+
+                this.bricks.push({
+                    x: CFG.brickGap + c*(w+CFG.brickGap),
+                    y: 60 + r*(h+CFG.brickGap),
+                    w: w, h: h,
+                    type: type,
+                    hp: hp,
+                    maxHp: hp,
+                    color: color,
+                    active: true
+                });
+            }
+        }
+    }
+
+    spawnPowerUp(x, y) {
+        const types = ['MULTI', 'MULTI', 'WIDE', 'FIRE', 'LIFE']; // Weighted chance
+        const type = types[Math.floor(Math.random() * types.length)];
+        this.powerups.push(new PowerUp(x, y, type));
+    }
+
+    applyPowerUp(p) {
+        AudioSys.sfx.powerup();
+        this.showFloatText(p.x, p.y, p.type);
+
+        switch(p.type) {
+            case 'MULTI':
+                // For every active ball, spawn 2 more
+                const currentBalls = this.balls.filter(b => b.active);
+                currentBalls.forEach(b => {
+                    for(let i=0; i<2; i++) {
+                        let nb = new Ball(b.x, b.y, b.speed);
+                        nb.dx = b.dx * (Math.random() * 0.5 + 0.7); // vary slighty
+                        nb.dy = -Math.abs(b.dy); // pop up
+                        nb.isFire = b.isFire;
+                        this.balls.push(nb);
+                    }
+                });
+                break;
+            case 'WIDE':
+                this.paddle.targetW = CFG.paddleW * 1.5;
+                setTimeout(() => this.paddle.targetW = CFG.paddleW, 10000); // Reset after 10s
+                break;
+            case 'FIRE':
+                this.balls.forEach(b => b.isFire = true);
+                setTimeout(() => this.balls.forEach(b => b.isFire = false), 8000);
+                break;
+            case 'LIFE':
+                this.lives++;
+                this.updateHUD();
+                break;
+        }
+    }
+
+    showFloatText(x, y, text) {
+        const div = document.createElement('div');
+        div.className = 'float-text text-white text-xl font-bold';
+        div.style.left = (x * this.scale + this.bounds.left) + 'px';
+        div.style.top = (y * this.scale + this.bounds.top) + 'px';
+        div.style.textShadow = '0 0 5px #fff';
+        div.innerText = text;
+        document.body.appendChild(div);
+        setTimeout(() => div.remove(), 1000);
+    }
+
+    resetBall() {
+        this.balls = [new Ball(CFG.width/2, CFG.height - 60, 6 + (this.level * 0.5))];
+        this.balls[0].active = false; // Stick to paddle
+    }
+
+    launchBall() {
+        this.balls.forEach(b => {
+            if(!b.active) {
+                b.active = true;
+                b.dx = (Math.random() - 0.5) * 8;
+                b.dy = -b.speed;
+            }
+        });
+    }
+
+    startGame() {
+        this.score = 0;
+        this.lives = 3;
+        this.level = 1;
+        this.updateHUD();
+        this.initLevel();
+        this.state = 'PLAYING';
+        this.toggleOverlays();
+    }
+
+    nextLevel() {
+        this.level++;
+        this.updateHUD();
+        this.initLevel();
+        this.state = 'PLAYING';
+        this.toggleOverlays();
+    }
+
+    toggleOverlays() {
+        document.querySelectorAll('.overlay').forEach(el => el.classList.add('hidden'));
+        if(this.state === 'GAMEOVER') document.getElementById('gameOverScreen').classList.remove('hidden');
+        if(this.state === 'VICTORY') document.getElementById('victoryScreen').classList.remove('hidden');
+        if(this.state === 'MENU') document.getElementById('startScreen').classList.remove('hidden');
+    }
+
+    createExplosion(x, y, color, count=10) {
+        for(let i=0; i<count; i++) this.particles.push(new Particle(x, y, color));
+    }
+
+    update() {
+        if(this.state !== 'PLAYING') return;
+
+        // Paddle Logic (Lerp)
+        this.paddle.w += (this.paddle.targetW - this.paddle.w) * 0.1;
+        this.paddle.x = this.inputX - this.paddle.w/2;
+        // Clamp
+        if(this.paddle.x < 0) this.paddle.x = 0;
+        if(this.paddle.x + this.paddle.w > CFG.width) this.paddle.x = CFG.width - this.paddle.w;
+        this.paddle.y = CFG.height - 40;
+
+        // Sticky Ball Logic
+        this.balls.forEach(b => {
+            if(!b.active) {
+                b.x = this.paddle.x + this.paddle.w/2;
+                b.y = this.paddle.y - b.r - 2;
+            }
+        });
+        if(this.balls.some(b => !b.active) && (this.inputX !== this.lastInputX)) {
+             // If user clicked/tapped, launch is handled in event listener, 
+             // but here we just ensure sticky ball follows paddle
+        }
+
+        // Ball Updates
+        let activeBalls = 0;
+        this.balls.forEach(b => {
+            if(!b.active && this.balls.length > 1) return; // Should remove inactive extras
+            if(!b.active) { activeBalls++; return; } // The sticky one counts
+
+            b.update();
+            if(b.active) activeBalls++;
+
+            // Paddle Collision
+            if(b.y + b.r >= this.paddle.y && b.y - b.r <= this.paddle.y + this.paddle.h &&
+               b.x >= this.paddle.x && b.x <= this.paddle.x + this.paddle.w && b.dy > 0) {
+                
+                b.dy = -Math.abs(b.dy);
+                // Angle control
+                let hitPos = (b.x - (this.paddle.x + this.paddle.w/2)) / (this.paddle.w/2);
+                b.dx = hitPos * (b.speed * 1.2); 
+                AudioSys.sfx.paddle();
+                this.createExplosion(b.x, this.paddle.y, '#0ff', 5);
+            }
+
+            // Brick Collision
+            for(let brick of this.bricks) {
+                if(!brick.active) continue;
+
+                // Simple AABB
+                if(b.x + b.r > brick.x && b.x - b.r < brick.x + brick.w &&
+                   b.y + b.r > brick.y && b.y - b.r < brick.y + brick.h) {
+                    
+                    // Logic: Resolve overlap to prevent sticking
+                    // Calculate overlaps
+                    let overlapLeft = (b.x + b.r) - brick.x;
+                    let overlapRight = (brick.x + brick.w) - (b.x - b.r);
+                    let overlapTop = (b.y + b.r) - brick.y;
+                    let overlapBottom = (brick.y + brick.h) - (b.y - b.r);
+
+                    // Find smallest overlap to determine collision side
+                    let minOverlap = Math.min(overlapLeft, overlapRight, overlapTop, overlapBottom);
+
+                    // If fireball, destroy immediately without bounce (unless steel)
+                    if(b.isFire && brick.type !== 'STEEL') {
+                        brick.hp = 0;
+                        AudioSys.sfx.fire();
+                    } else {
+                        // Standard Bounce Logic
+                        if (minOverlap === overlapLeft || minOverlap === overlapRight) {
+                            b.dx = -b.dx;
+                        } else {
+                            b.dy = -b.dy;
+                        }
+                        
+                        // Damage Logic
+                        if(brick.type !== 'STEEL') {
+                            brick.hp--;
+                            AudioSys.sfx.brick();
+                        } else {
+                            AudioSys.sfx.metal();
+                            this.createExplosion(b.x, b.y, '#aaa', 3);
+                            // Visual shake
+                            brick.shake = 5;
+                        }
+                    }
+
+                    // Brick Destruction
+                    if(brick.hp <= 0) {
+                        brick.active = false;
+                        this.score += (brick.type === 'HARD' ? 20 : 10) * this.level;
+                        this.createExplosion(brick.x + brick.w/2, brick.y + brick.h/2, brick.color, 10);
+                        this.updateHUD();
+                        
+                        // Powerup Drop Chance
+                        if(Math.random() < 0.15) {
+                            this.spawnPowerUp(brick.x + brick.w/2, brick.y);
+                        }
+                    }
+                    break; // Only hit one brick per frame per ball to prevent glitching
+                }
+            }
+        });
+
+        // Cleanup dead balls
+        this.balls = this.balls.filter(b => b.y < CFG.height + 50);
+
+        // Win/Loss Condition
+        if(activeBalls === 0) {
+            this.lives--;
+            AudioSys.sfx.lose();
+            this.updateHUD();
+            if(this.lives <= 0) {
+                this.state = 'GAMEOVER';
+                document.getElementById('finalScore').innerText = this.score;
+                this.toggleOverlays();
+            } else {
+                this.resetBall();
+            }
+        }
+
+        if(this.bricks.filter(b => b.active && b.type !== 'STEEL').length === 0) {
+            this.state = 'VICTORY';
+            this.toggleOverlays();
+        }
+
+        // Powerups Logic
+        this.powerups.forEach(p => {
+            p.update();
+            // Collision with paddle
+            if(p.active && 
+               p.x < this.paddle.x + this.paddle.w && p.x + p.w > this.paddle.x &&
+               p.y + p.h > this.paddle.y && p.y < this.paddle.y + this.paddle.h) {
+                p.active = false;
+                this.applyPowerUp(p);
+            }
+        });
+
+        // Particles
+        this.particles.forEach(p => p.update());
+        this.particles = this.particles.filter(p => p.life > 0);
+    }
+
+    draw() {
+        // Trail effect
+        this.ctx.fillStyle = 'rgba(5, 5, 10, 0.4)';
+        this.ctx.fillRect(0, 0, CFG.width, CFG.height);
+
+        // Bricks
+        this.bricks.forEach(b => {
+            if(!b.active) return;
+            
+            let x = b.x;
+            if(b.shake) {
+                x += (Math.random()-0.5) * b.shake;
+                b.shake *= 0.9;
+                if(b.shake < 0.5) b.shake = 0;
+            }
+
+            this.ctx.shadowBlur = 0;
+            if(b.type === 'STEEL') {
+                // Metallic look
+                const grad = this.ctx.createLinearGradient(x, b.y, x+b.w, b.y+b.h);
+                grad.addColorStop(0, '#555');
+                grad.addColorStop(0.5, '#aaa');
+                grad.addColorStop(1, '#555');
+                this.ctx.fillStyle = grad;
+                this.ctx.strokeStyle = '#fff';
+                this.ctx.strokeRect(x, b.y, b.w, b.h);
+            } else {
+                this.ctx.fillStyle = b.hp === 1 ? b.color : '#fff'; // Flash white if 1 hp left on hard brick
+                if(b.type === 'HARD' && b.hp > 1) this.ctx.fillStyle = '#888'; // Darker if hard
+                
+                this.ctx.shadowBlur = 10;
+                this.ctx.shadowColor = b.color;
+            }
+            
+            this.ctx.fillRect(x, b.y, b.w, b.h);
+            
+            // Inner bevel
+            this.ctx.fillStyle = 'rgba(255,255,255,0.1)';
+            this.ctx.fillRect(x, b.y, b.w, b.h/2);
+        });
+
+        // Paddle
+        this.ctx.shadowBlur = 15;
+        this.ctx.shadowColor = '#0ff';
+        this.ctx.fillStyle = '#0ff';
+        this.ctx.beginPath();
+        this.ctx.roundRect(this.paddle.x, this.paddle.y, this.paddle.w, this.paddle.h, 8);
+        this.ctx.fill();
+
+        // Balls
+        this.balls.forEach(b => b.draw(this.ctx));
+
+        // Powerups
+        this.powerups.forEach(p => p.draw(this.ctx));
+
+        // Particles
+        this.particles.forEach(p => p.draw(this.ctx));
+    }
+
+    loop(t) {
+        this.update();
+        this.draw();
+        requestAnimationFrame(tm => this.loop(tm));
+    }
+
+    updateHUD() {
+        document.getElementById('scoreEl').innerText = this.score;
+        document.getElementById('livesEl').innerText = this.lives;
+        document.getElementById('levelEl').innerText = 'SECTOR ' + this.level;
+    }
+}
+
+window.onload = () => new Game();
+
+</script>
+</body>
+</html>
